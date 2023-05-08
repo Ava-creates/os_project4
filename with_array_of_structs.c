@@ -37,7 +37,7 @@ struct footer get_footer_data(FILE* zip_file)
     return data2;
 }
 
-struct header ** get_header(FILE* zip_file )
+struct header * get_header(FILE* zip_file )
 {
     struct footer data = get_footer_data(zip_file);
     printf("%din side header\n", data.num_headers);
@@ -45,9 +45,9 @@ struct header ** get_header(FILE* zip_file )
     zip_file = fopen("adzip.ad", "rb+"); //reading the metadat a
     fseek(zip_file, data.total_file_size , SEEK_SET);
 
-    struct header **head2 = malloc(data.num_headers* sizeof(struct header*)) ;
+    struct header *head2 = malloc(data.num_headers* sizeof(struct header)) ;
 
-    if(fread(*head2, sizeof(struct header*), data.num_headers, zip_file) !=1 )
+    if(fread(head2, sizeof(struct header), data.num_headers, zip_file) !=1 )
     {
         perror("error in reading \n");
     } 
@@ -57,12 +57,12 @@ struct header ** get_header(FILE* zip_file )
 
     printf("int he loop \n");
     // head2[i].file_name=malloc(20 * sizeof(char));
-    // head2[i].file_name[strlen(head2[i].file_name)]='\0';
-    // printf("%s\n", head2[i].file_name);
-    printf("%d\n", head2[i]->file_gid);
-    printf("%d\n", head2[i]->file_size);
-    printf("%d\n", head2[i]->file_uid);
-    printf("%hu\n", head2[i]->file_mode);
+    head2[i].file_name[strlen(head2[i].file_name)]='\0';
+    printf("%s\n", head2[i].file_name);
+    printf("%d\n", head2[i].file_gid);
+    printf("%d\n", head2[i].file_size);
+    printf("%d\n", head2[i].file_uid);
+    printf("%hu\n", head2[i].file_mode);
     // printf("%s\n", head2[i].file_path);
     }
     printf("out\n");
@@ -73,7 +73,7 @@ struct header ** get_header(FILE* zip_file )
 
 void add_metadata(char* filename,  struct footer* data, struct header **head, int* size)  //
 {
-    struct header *head2 = malloc(sizeof(struct header));
+    struct header head2; 
     struct stat file_stat;
     
     // printf("a\n");
@@ -84,33 +84,32 @@ void add_metadata(char* filename,  struct footer* data, struct header **head, in
     }
     char* file_name = strrchr(file_path, '/') + 1;
     // head2.file_name= (char*)malloc(sizeof(char) * 200);
-    head2->file_path = file_path;
-    head2->file_gid= file_stat.st_gid;
-    head2->file_uid= file_stat.st_uid;
-    head2->file_name= file_name;
+    head2.file_path = file_path;
+    head2.file_gid= file_stat.st_gid;
+    head2.file_uid= file_stat.st_uid;
+    head2.file_name= file_name;
     // strcpy(head2.file_name, file_name);
     // head2.file_name= realloc(head2.file_name, (strlen(head2.file_name) + 1) * sizeof(char));
     // head2.file_name[strlen(head2.file_name)] = '\0';
 
-    head2->file_mtime= file_stat.st_mtime;
-    head2->file_mode= file_stat.st_mode;
-    head2->file_size= file_stat.st_size;
+    head2.file_mtime= file_stat.st_mtime;
+    head2.file_mode= file_stat.st_mode;
+    head2.file_size= file_stat.st_size;
     // printf("b\n");
     data->total_file_size+=file_stat.st_size;
     data->num_headers+=1;
     // printf("c\n");
-//  *array = realloc(*array, *size * sizeof(struct my_struct *));
-//     (*array)[*size - 1] = new_elem;
-    (*size)++; 
-    *head = realloc(*head, (*size)*sizeof(struct header *)); 
 
-    (head)[(*size)-1]= head2; 
+    (*size)++; 
+    *head = realloc(*head, (*size)*sizeof(struct header)); 
+
+    (*head)[(*size)-1]= head2; 
 
     // printf("d\n");
 
 }
 
-void write_metadata( FILE* zip_file, struct  header **head, int size ){
+void write_metadata( FILE* zip_file, struct  header *head, int size ){
     //     for (int i= 0; i<size; i++ )
     // {
     //    printf("printing the file name: %s  \n", head[i].file_name);
@@ -155,7 +154,7 @@ void append_files(char* filename, FILE* zip_file, struct  header **head , int*si
     *data =  get_footer_data (zip_file);
     printf("%dinside append \n", data->num_headers);
     printf("%d\n", data->total_file_size);
-    head = get_header(zip_file);
+    *head = get_header(zip_file);
 
     zip_file = fopen("adzip.ad", "rb+");
 
@@ -188,13 +187,13 @@ int main()
 //    char* filename2= "test2.txt";
    FILE* zip_file;
     int size =0 ; 
-   struct header *head = malloc(3 * sizeof(struct header*));
+   struct header * head = NULL;
    struct footer Data= {0, 0};
    struct footer* data= &Data;
   
-    add_files(filename, zip_file, head, &size, data);
+    add_files(filename, zip_file, &head, &size, data);
 //    append_files(filename2, zip_file, &head, &size, data);
-   write_metadata(zip_file, head, size);
+   write_metadata(zip_file,head, size);
 
     zip_file = fopen("adzip.ad", "a");
     fwrite(data, sizeof(struct footer), 1, zip_file);
