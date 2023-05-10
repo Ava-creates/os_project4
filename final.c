@@ -26,7 +26,8 @@ struct header
     time_t file_mtime;
 };
 
-void add_metadata(struct header **array, int *size, char *file_name, struct footer *data)
+// flag --> true, file. else, folder
+void add_metadata(struct header **array, int *size, char *file_name, struct footer *data, bool flag)
 {
     // Allocate memory for a new struct
     struct header *new_elem = malloc(sizeof(struct header));
@@ -57,7 +58,10 @@ void add_metadata(struct header **array, int *size, char *file_name, struct foot
 
     // modify the footer contents
     data->num_headers += 1;
-    data->total_file_size += file_stat.st_size;
+    if (flag == true)
+    {
+        data->total_file_size += file_stat.st_size;
+    }
 }
 
 void add_files(char *filename, char *zip, struct header **head, int *size, struct footer *data)
@@ -70,7 +74,7 @@ void add_files(char *filename, char *zip, struct header **head, int *size, struc
     }
 
     // append the file metadata (name, size, permissions, etc.) to the archive
-    add_metadata(head, size, filename, data);
+    add_metadata(head, size, filename, data, true);
 
     // open the zip file and add file content to the end of the file
     FILE *zip_file = fopen(zip, "a");
@@ -200,7 +204,7 @@ void append_files(char *filename, char *zipfile, struct header **head, int *size
         fwrite(buffer, 1, nread, zip_file);
     }
 
-    add_metadata(head, size, filename, data);
+    add_metadata(head, size, filename, data, true);
     fclose(file);
     fclose(zip_file);
 }
@@ -235,6 +239,7 @@ void traverseDirectory(const char *directoryPath, char *zip, struct header **hea
         if (S_ISDIR(fileStat.st_mode))
         {
             // It's a directory, recursively traverse
+            add_metadata(head, size, entryPath, data, false);
             traverseDirectory(entryPath, zip, head, size, data, flag);
         }
         else
@@ -379,6 +384,7 @@ int main(int argc, char *argv[])
             {
                 if (S_ISDIR(fileStat.st_mode))
                 {
+                    add_metadata(&head, &size, fileOrDirectory, data, false);
                     traverseDirectory(fileOrDirectory, archiveFile, &head, &size, data, true);
                 }
                 else
@@ -392,6 +398,7 @@ int main(int argc, char *argv[])
 
         // checking the contents of head after reading from the zip
         // struct header *head2 = get_header(archiveFile);
+
         // for (int i = 0; i < data->num_headers; i++)
         // {
         //     printf("String: %s, Number:%d\n", head2[i].file_name, head2[i].file_size);
@@ -423,6 +430,7 @@ int main(int argc, char *argv[])
             {
                 if (S_ISDIR(fileStat.st_mode))
                 {
+                    add_metadata(&head2, &size, fileOrDirectory, data2, false);
                     traverseDirectory(fileOrDirectory, archiveFile, &head2, &size, data2, false);
                 }
                 else
