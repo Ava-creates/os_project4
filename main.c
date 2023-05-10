@@ -209,45 +209,100 @@ void append_files(char *filename, char *zipfile, struct header **head, int *size
     fclose(file);
     fclose(zip_file);
 }
+int cmpfunc(const void *a, const void *b) {
+    char *s1 = *(char **)a;
+    char *s2 = *(char **)b;
+    int count1 = 0, count2 = 0;
 
-int isDir(const char* fileName)
+    // Count the number of '/' characters in each string
+    for (int i = 0; i < strlen(s1); i++) {
+        if (s1[i] == '/') {
+            count1++;
+        }
+    }
+
+    for (int i = 0; i < strlen(s2); i++) {
+        if (s2[i] == '/') {
+            count2++;
+        }
+    }
+
+    // Compare the counts
+    return count1 - count2;
+}
+
+void heirarchy_info()
 {
-    struct stat path;
+    struct header *head2 = get_header("adzip.ad");
+    struct footer data = get_footer_data("adzip.ad");
+    int size = data.num_headers;
 
-    stat(fileName, &path);
-    printf("%s, %d\n", fileName, S_ISREG(path.st_mode));
+    char **string_array = malloc(size * sizeof(char *));
+    if (!string_array) {
+        fprintf(stderr, "Error: Failed to allocate memory\n");
+    }
 
-    return S_ISREG(path.st_mode);
+    // Copy the initial strings to the string array
+    for (int i = 0; i < size; i++) {
+        string_array[i] = strdup(head2[i].file_name);
+        if (!string_array[i]) {
+            fprintf(stderr, "Error: Failed to allocate memory\n");
+        }
+    }
+    qsort(string_array, size, sizeof(char *), cmpfunc);
+    for (int i = 0; i < size; i++) {
+    printf("%s\n", string_array[i]);
+    }
 }
 
 void unzip()
 {
-    char path[36] ="directory/sub_dir/sub_dir3/test.txt";
+    
+    struct header *head2 = get_header("adzip.ad");
+    // char path[36] ="directory/sub_dir/sub_dir3/test.txt";
+    char cwd[1024];
+    getcwd(cwd, sizeof(cwd));
+    printf("%s \n", cwd);
+
+    strcat(cwd, "/adzip.ad");
+
+    printf("%s \n", cwd);
+    mkdir("extract", 0700);
+     
+    struct footer data = get_footer_data("adzip.ad");
+    int size = data.num_headers;
+    int start_postion_file =0;
+
+    printf("fine a\n"); 
+    for( int i =0; i<size; i++)
+{    
+    int dir_back =0;
+    char * path = head2[i].file_name;
+    printf("fine a %s\n", path); 
     char s[2] = "/";
     char *token;
-   /* get the first token */
+    if(strchr(path, '/')==NULL ){
+        token = path;
+    }
+    else{
     token = strtok(path, s);
-    // printf( " %s\n", token );
-    // DIR *dir;
-    // struct dirent *dp;
-    // if (chdir(token)!=0) {
-    //     mkdir(token, 0700);
-    //     perror ("Cannot open .");
-    //     exit (1);
-    // }
-   /* walk through other tokens */
-   while( token != NULL ) {
+    }
+
+    printf("%s token \n", token);
+    chdir("extract");
+    while( token != NULL ) {
         printf( " %s\n", token );
+
         if(strchr(token, '.')!=NULL ){
         FILE *fptr;
         FILE *fptr_read;
-        fptr_read= fopen("../../../test2.txt", "rb+");
+        fptr_read= fopen(cwd, "rb+");
         fptr = fopen(token, "wb+");
-        printf("fine a\n"); 
+        printf("fine a inside\n"); 
         char buffer[28];  // create a buffer to hold the bytes read
         if (fptr_read == NULL) {
         perror("Failed to open input file");}
-
+        fseek(fptr_read, start_postion_file, SEEK_SET);
         size_t bytes_read = fread(buffer, 1, 26, fptr_read );  // read 10 bytes from input file
         printf("fine a\n"); 
         fwrite(buffer, 1, bytes_read, fptr);  // write to the file 
@@ -261,8 +316,12 @@ void unzip()
         }}
 
       token = strtok(NULL, s);
+      dir_back++;
 
    }
+
+   start_postion_file+=head2[i].file_size;
+}
 }
    
 
@@ -283,12 +342,12 @@ void unzip()
 
 int main()
 {
-    // char *filename = "test.txt";
+    char *filename = "test.txt";
     // struct header *head = NULL;
     // int size = 0;
     // struct footer Data = {0, 0};
     // struct footer *data = &Data;
-    char *filename = "test.txt";
+
     // FILE *zip_file;
     // //
     // // int s = 0;
@@ -298,14 +357,14 @@ int main()
     // add_files(filename, zip_file, &head, &size, data);
     // write_metadata(head, size, "adzip.ad");
     // // add_files(filename2, zip_file, &head, &s, data);
-    // // // //    append_files(filename2, zip_file, &head, &size, data);
+    //    append_files(filename2, zip_file, &head, &size, data);
     // //
 
     // zip_file = fopen("adzip.ad", "a");
     // fwrite(data, sizeof(struct footer), 1, zip_file);
-    // // printf("data size: %d\n", data->num_headers);
-    // // printf("data total: %d\n", data->total_file_size);
-    // // // printf("out1\n");
+    // printf("data size: %d\n", data->num_headers);
+    // printf("data total: %d\n", data->total_file_size);
+    // // printf("out1\n");
     // fclose(zip_file);
 
     // struct header *head2 = get_header("adzip.ad");
@@ -347,7 +406,8 @@ int main()
     // // // printf("out1\n");
     // fclose(zip_file);
 
-
-    unzip();
+    heirarchy_info();
+    
+    // unzip();
 
 }
