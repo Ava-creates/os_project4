@@ -209,6 +209,63 @@ void append_files(char *filename, char *zipfile, struct header **head, int *size
     fclose(file);
     fclose(zip_file);
 }
+
+int isDir(const char* fileName)
+{
+    struct stat path;
+
+    stat(fileName, &path);
+    printf("%s, %d\n", fileName, S_ISREG(path.st_mode));
+
+    return S_ISREG(path.st_mode);
+}
+
+void unzip()
+{
+    char path[36] ="directory/sub_dir/sub_dir3/test.txt";
+    char s[2] = "/";
+    char *token;
+   /* get the first token */
+    token = strtok(path, s);
+    // printf( " %s\n", token );
+    // DIR *dir;
+    // struct dirent *dp;
+    // if (chdir(token)!=0) {
+    //     mkdir(token, 0700);
+    //     perror ("Cannot open .");
+    //     exit (1);
+    // }
+   /* walk through other tokens */
+   while( token != NULL ) {
+        printf( " %s\n", token );
+        if(strchr(token, '.')!=NULL ){
+        FILE *fptr;
+        FILE *fptr_read;
+        fptr_read= fopen("../../../test2.txt", "rb+");
+        fptr = fopen(token, "wb+");
+        printf("fine a\n"); 
+        char buffer[28];  // create a buffer to hold the bytes read
+        if (fptr_read == NULL) {
+        perror("Failed to open input file");}
+
+        size_t bytes_read = fread(buffer, 1, 26, fptr_read );  // read 10 bytes from input file
+        printf("fine a\n"); 
+        fwrite(buffer, 1, bytes_read, fptr);  // write to the file 
+        fclose(fptr);
+        fclose(fptr_read);
+    }
+    else{
+      if(chdir(token)!=0){
+        mkdir(token, 0700);
+        chdir(token);
+        }}
+
+      token = strtok(NULL, s);
+
+   }
+}
+   
+
 // struct
 
 // void read_file()
@@ -289,4 +346,8 @@ int main()
     // printf("data total: %d\n", data->total_file_size);
     // // // printf("out1\n");
     // fclose(zip_file);
+
+
+    unzip();
+
 }

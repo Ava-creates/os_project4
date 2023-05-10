@@ -86,4 +86,48 @@ int main() {
     }
 
 }
+int isDir(const char* fileName)
+{
+    struct stat path;
 
+    stat(fileName, &path);
+
+    return S_ISREG(path.st_mode);
+}
+
+void unzip(struct header *array, int size)
+{
+    char path ="directory/sub_dir/test.txt";
+    char s[2] = "/";
+    char *token;
+   /* get the first token */
+    token = strtok(path, s);
+    DIR *dir;
+    struct dirent *dp;
+    if (chdir(token)!=0) {
+        mkdir(token, 0700);
+        perror ("Cannot open .");
+        exit (1);
+    }
+   /* walk through other tokens */
+   while( token != NULL ) {
+    if(isDir != 0 ){
+        FILE *fptr;
+        FILE *fptr_read;
+        fptr_read= fopen("test2.tx", "rb+");
+        fptr = fopen(token, "wb+");
+        char buffer[20];  // create a buffer to hold the bytes read
+        size_t bytes_read = fread(buffer, 1, 20, fptr_read );  // read 10 bytes from input file
+        fwrite(buffer, 1, bytes_read, fptr);  // write to the file 
+        fclose(fptr);
+        fclose(fptr_read);
+    }
+      if(chdir(token)!=0){
+        mkdir(token, 0700);}
+      printf( " %s\n", token );
+      token = strtok(NULL, s);
+
+   }
+   
+   return(0);
+}
