@@ -1,3 +1,5 @@
+#define _XOPEN_SOURCE 1			/* Required under GLIBC for nftw() */
+#define _XOPEN_SOURCE_EXTENDED 1
 #include "functions.h"
 
 
@@ -150,6 +152,7 @@ void write_metadata(struct header *array, int size, char *filename, struct foote
     fwrite(&data->total_file_size, sizeof(int), 1, fp);
     fclose(fp);
 }
+
 
 void append_files(char *filename, char *zipfile, struct header **head, int *size, struct footer *data)
 {
@@ -314,36 +317,36 @@ void heirarchy_info_2(char *filename)
     }
 }
 
-void heirarchy_info(char *filename)
-{
-    struct header *head2 = get_header(filename);
-    struct footer data = get_footer_data(filename);
-    int size = data.num_headers;
+// void heirarchy_info(char *filename)
+// {
+//     struct header *head2 = get_header(filename);
+//     struct footer data = get_footer_data(filename);
+//     int size = data.num_headers;
 
-    char **string_array = malloc(size * sizeof(char *));
-    if (!string_array)
-    {
-        fprintf(stderr, "Error: Failed to allocate memory\n");
-        return;
-    }
+//     char **string_array = malloc(size * sizeof(char *));
+//     if (!string_array)
+//     {
+//         fprintf(stderr, "Error: Failed to allocate memory\n");
+//         return;
+//     }
 
-    // Copy the initial strings to the string array
-    for (int i = 0; i < size; i++)
-    {
-        string_array[i] = strdup(head2[i].file_name);
-        if (!string_array[i])
-        {
-            fprintf(stderr, "Error: Failed to allocate memory\n");
-            return;
-        }
-    }
-    qsort(string_array, size, sizeof(char *), cmpfunc);
-    printf("%s: Hierarchy Information\n", filename);
-    for (int i = 0; i < size; i++)
-    {
-        printf("%s\n", string_array[i]);
-    }
-}
+//     // Copy the initial strings to the string array
+//     for (int i = 0; i < size; i++)
+//     {
+//         string_array[i] = strdup(head2[i].file_name);
+//         if (!string_array[i])
+//         {
+//             fprintf(stderr, "Error: Failed to allocate memory\n");
+//             return;
+//         }
+//     }
+//     qsort(string_array, size, sizeof(char *), cmpfunc);
+//     printf("%s: Hierarchy Information\n", filename);
+//     for (int i = 0; i < size; i++)
+//     {
+//         printf("%s\n", string_array[i]);
+//     }
+// }
 
 int removeFile(const char *path, const struct stat *statBuf, int type, struct FTW *ftwBuf)
 {
@@ -367,13 +370,12 @@ void unzip(char *filename)
     if (access("extract", F_OK) == 0)
     {
         // Recursively remove the contents of the directory
-        if (nftw("extract", removeFile, 64, FTW_DEPTH | FTW_PHYS) == -1)
+        if (nftw("extract", removeFile, 64, FTW_DEPTH| FTW_PHYS) == -1)
         {
             perror("Error removing directory contents");
             return;
         }
     }
-    
     mkdir("extract", 0700);
 
     struct footer data = get_footer_data(filename);
@@ -438,7 +440,8 @@ void unzip(char *filename)
             chdir("..");
         }
     }
-};
+}
+
 
 struct AppendResult append(char *filename)
 {

@@ -10,6 +10,8 @@
 #include <ftw.h>
 #include <fcntl.h>
 
+#define _XOPEN_SOURCE 1			/* Required under GLIBC for nftw() */
+#define _XOPEN_SOURCE_EXTENDED 1
 
 struct footer
 {
@@ -59,7 +61,7 @@ int cmpfunc(const void *a, const void *b);
 
 void heirarchy_info_2(char *filename);
 
-void heirarchy_info(char *filename);
+// void heirarchy_info(char *filename);
 
 int removeFile(const char *path, const struct stat *statBuf, int type, struct FTW *ftwBuf);
 
