@@ -7,6 +7,8 @@
 #include <stdbool.h>
 #include <dirent.h>
 #include <time.h>
+#include <ftw.h>
+#include <fcntl.h>
 
 #define MAX_TOKENS 100
 
@@ -24,6 +26,7 @@ struct header
     uid_t file_uid;
     gid_t file_gid;
     time_t file_mtime;
+    int fileOrDirectory; // flag --> 1, file. folder --> 0
 };
 
 // flag --> true, file. else, folder
@@ -61,12 +64,18 @@ void add_metadata(struct header **array, int *size, char *file_name, struct foot
     if (flag == true)
     {
         data->total_file_size += file_stat.st_size;
+        new_elem->fileOrDirectory = 1;
+    }
+    else
+    {
+        new_elem->fileOrDirectory = 0;
     }
 }
 
 void add_files(char *filename, char *zip, struct header **head, int *size, struct footer *data)
 {
     FILE *file = fopen(filename, "r");
+
     if (file == NULL)
     {
         fprintf(stderr, "Error: could not open file %s\n", filename);
@@ -112,6 +121,7 @@ void write_metadata(struct header *array, int size, char *filename, struct foote
         fwrite(&array[i].file_mode, sizeof(int), 1, fp);
         fwrite(&array[i].file_uid, sizeof(int), 1, fp);
         fwrite(&array[i].file_mtime, sizeof(int), 1, fp);
+        fwrite(&array[i].fileOrDirectory, sizeof(int), 1, fp);
     }
 
     fwrite(&data->num_headers, sizeof(int), 1, fp);
@@ -161,6 +171,7 @@ struct header *get_header(char *filename)
         fread(&array[i].file_mode, sizeof(int), 1, fp);
         fread(&array[i].file_uid, sizeof(int), 1, fp);
         fread(&array[i].file_mtime, sizeof(int), 1, fp);
+        fread(&array[i].fileOrDirectory, sizeof(int), 1, fp);
     }
 
     fclose(fp);
@@ -192,10 +203,14 @@ void append_files(char *filename, char *zipfile, struct header **head, int *size
     }
 
     FILE *zip_file = fopen(zipfile, "r+");
-
+    if (zip_file == NULL)
+    {
+        fprintf(stderr, "Error: could not open file %s\n", filename);
+        return;
+    }
     // append the file contents to the archive
     fseek(zip_file, data->total_file_size, SEEK_SET);
-    ftruncate(fileno(zip_file), ftell(zip_file));
+
     char buffer[1024];
     size_t nread;
 
@@ -304,9 +319,172 @@ void printTime(time_t timestamp)
     printf("File Mime: %s ", buffer);
 }
 
+int cmpfunc(const void *a, const void *b)
+{
+    char *s1 = *(char **)a;
+    char *s2 = *(char **)b;
+    int count1 = 0, count2 = 0;
+
+    // Count the number of '/' characters in each string
+    for (int i = 0; i < strlen(s1); i++)
+    {
+        if (s1[i] == '/')
+        {
+            count1++;
+        }
+    }
+
+    for (int i = 0; i < strlen(s2); i++)
+    {
+        if (s2[i] == '/')
+        {
+            count2++;
+        }
+    }
+
+    // Compare the counts
+    return count1 - count2;
+}
+
+void heirarchy_info_2(char *filename)
+{
+    struct header *head = get_header(filename);
+    struct footer data = get_footer_data(filename);
+    for (int i = 0; i < data.num_headers; i++)
+    {
+        printf("%s\n", head[i].file_name);
+    }
+}
+
+void heirarchy_info(char *filename)
+{
+    struct header *head2 = get_header(filename);
+    struct footer data = get_footer_data(filename);
+    int size = data.num_headers;
+
+    char **string_array = malloc(size * sizeof(char *));
+    if (!string_array)
+    {
+        fprintf(stderr, "Error: Failed to allocate memory\n");
+        return;
+    }
+
+    // Copy the initial strings to the string array
+    for (int i = 0; i < size; i++)
+    {
+        string_array[i] = strdup(head2[i].file_name);
+        if (!string_array[i])
+        {
+            fprintf(stderr, "Error: Failed to allocate memory\n");
+            return;
+        }
+    }
+    qsort(string_array, size, sizeof(char *), cmpfunc);
+    printf("%s: Hierarchy Information\n", filename);
+    for (int i = 0; i < size; i++)
+    {
+        printf("%s\n", string_array[i]);
+    }
+}
+
+int removeFile(const char *path, const struct stat *statBuf, int type, struct FTW *ftwBuf)
+{
+    if (remove(path) == -1)
+    {
+        perror("Error removing file");
+    }
+    return 0;
+}
+
+void unzip(char *filename)
+{
+
+    struct header *head2 = get_header(filename);
+
+    char cwd[1024];
+    getcwd(cwd, sizeof(cwd));
+
+    sprintf(cwd, "%s/%s", cwd, filename);
+
+    // Check if the directory exists
+    if (access("extract", F_OK) == 0)
+    {
+        // Recursively remove the contents of the directory
+        if (nftw("extract", removeFile, 64, FTW_DEPTH | FTW_PHYS) == -1)
+        {
+            perror("Error removing directory contents");
+            return;
+        }
+    }
+    mkdir("extract", 0700);
+
+    struct footer data = get_footer_data(filename);
+    int size = data.num_headers;
+    int start_postion_file = 0;
+
+    for (int i = 0; i < size; i++)
+    {
+        int dir_back = 0;
+        char *path = head2[i].file_name;
+
+        char s[2] = "/";
+        char *token;
+        if (strchr(path, '/') == NULL)
+        {
+            token = path;
+        }
+        else
+        {
+            token = strtok(path, s);
+        }
+
+        chdir("extract");
+        while (token != NULL)
+        {
+
+            if (strchr(token, '.') != NULL)
+            {
+
+                FILE *fptr;
+                FILE *fptr_read;
+                fptr_read = fopen(cwd, "rb"); // zipfile
+                fptr = fopen(token, "wb");    // current file
+
+                char buffer[head2[i].file_size]; // create a buffer to hold the bytes read
+                if (fptr_read == NULL)
+                {
+                    perror("Failed to open input file");
+                }
+                fseek(fptr_read, start_postion_file, SEEK_SET);
+                size_t bytes_read = fread(buffer, 1, head2[i].file_size, fptr_read); // read 10 bytes from input file
+                start_postion_file += head2[i].file_size;
+                fwrite(buffer, 1, bytes_read, fptr); // write to the file
+                fclose(fptr);
+                fclose(fptr_read);
+            }
+            else
+            {
+                if (chdir(token) != 0)
+                {
+                    mkdir(token, 0700);
+                    chdir(token);
+                }
+            }
+
+            token = strtok(NULL, s);
+            dir_back++;
+        }
+
+        for (int j = 0; j < dir_back; j++)
+        {
+            chdir("..");
+        }
+    }
+};
+
 int main(int argc, char *argv[])
 {
-    if (argc != 4)
+    if (argc > 4 || argc < 3)
     {
         printf("Usage: %s {-c|-a|-x|-m|-p} <archive-file> <file/directory list>\n", argv[0]);
         return 1;
@@ -325,6 +503,25 @@ int main(int argc, char *argv[])
     {
         printf("Invalid command option: %s\n", option);
         return 1;
+    }
+
+    if (strcmp(option, "-c") == 0 || strcmp(option, "-a") == 0)
+    {
+        if (argc != 4)
+        {
+            printf("Usage: %s {-c|-a|-x|-m|-p} <archive-file> <file/directory list>\n", argv[0]);
+            return 1;
+        }
+    }
+
+    if (strcmp(option, "-x") == 0 || strcmp(option, "-m") == 0 ||
+        strcmp(option, "-p") == 0)
+    {
+        if (argc != 3)
+        {
+            printf("Usage: %s {-c|-a|-x|-m|-p} <archive-file>\n", argv[0]);
+            return 1;
+        }
     }
 
     // Validate the archive file
@@ -395,7 +592,7 @@ int main(int argc, char *argv[])
         }
 
         write_metadata(head, size, archiveFile, data);
-
+        printf("Created %s\n", archiveFile);
         // checking the contents of head after reading from the zip
         // struct header *head2 = get_header(archiveFile);
 
@@ -406,7 +603,7 @@ int main(int argc, char *argv[])
     }
     else if (strcmp(option, "-a") == 0)
     {
-        FILE *file = fopen(archiveFile, "r");
+        FILE *file = fopen(archiveFile, "rw+");
         if (file == NULL)
         {
             printf("Failed to open archive file: %s\n", archiveFile);
@@ -420,6 +617,14 @@ int main(int argc, char *argv[])
         struct footer *data2 = &Data;
         int size = Data.num_headers;
 
+        int fd = open(archiveFile, O_RDWR);
+        if (fd == -1)
+        {
+            printf("Failed to open archive file: %s\n", archiveFile);
+            return 1;
+        }
+        ftruncate(fd, Data.total_file_size);
+        close(fd);
         for (int i = 0; i < numTokens; i++)
         {
             char *fileOrDirectory = tokens[i];
@@ -441,7 +646,7 @@ int main(int argc, char *argv[])
         }
 
         write_metadata(head2, size, archiveFile, data2);
-
+        printf("Appended to %s\n", archiveFile);
         // struct header *head = get_header(archiveFile);
         // for (int i = 0; i < data2->num_headers; i++)
         // {
@@ -453,12 +658,35 @@ int main(int argc, char *argv[])
         struct AppendResult result = append(archiveFile);
         struct header *head = result.head;
         struct footer Data = result.data;
-
+        printf("%s: Metadata Information\n", archiveFile);
         for (int i = 0; i < Data.num_headers; i++)
         {
             printf("File Name: %s, File Size:%d, File GID:%d, File UID:%d, ", head[i].file_name, head[i].file_size, head[i].file_gid, head[i].file_uid);
             printTime(head[i].file_mtime);
             printFileMode(head[i].file_mode);
         }
+    }
+    else if (strcmp(option, "-p") == 0)
+    {
+        FILE *file = fopen(archiveFile, "r");
+        if (file == NULL)
+        {
+            printf("Failed to open archive file: %s\n", archiveFile);
+            return 1;
+        }
+        fclose(file);
+        heirarchy_info_2(archiveFile);
+    }
+    else if (strcmp(option, "-x") == 0)
+    {
+        FILE *file = fopen(archiveFile, "r");
+        if (file == NULL)
+        {
+            printf("Failed to open archive file: %s\n", archiveFile);
+            return 1;
+        }
+        fclose(file);
+        unzip(archiveFile);
+        printf("Extracted %s to folder named extracted\n", archiveFile);
     }
 }
