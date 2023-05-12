@@ -2,6 +2,7 @@
 #define _XOPEN_SOURCE_EXTENDED 1
 #include "functions.h"
 
+// getting the footer data from the given zip file
 struct footer get_footer_data(char *zip_file)
 {
     FILE *fp = fopen(zip_file, "rb+"); // open the archive file
@@ -17,18 +18,22 @@ struct footer get_footer_data(char *zip_file)
     return data;
 }
 
+// getting the header data from the given zip file
 struct header *get_header(char *filename)
 {
-    struct footer data = get_footer_data(filename);
+    // check if the file exists
     FILE *fp = fopen(filename, "rb");
     if (fp == NULL)
     {
         fprintf(stderr, "Error: could not open file %s\n", filename);
         return NULL;
     }
+    fclose(fp);
+    // get the footer so we know the total number of headers
+    struct footer data = get_footer_data(filename);
+    int size = data.num_headers; // total number of headers in the file
 
-    int size = data.num_headers;
-
+    FILE *fp = fopen(filename, "rb");
     // seek to the position where the file content ends at the meta data beginds
     fseek(fp, data.total_file_size, SEEK_SET);
 
@@ -36,7 +41,6 @@ struct header *get_header(char *filename)
     struct header *array = malloc((size) * sizeof(struct header));
     for (int i = 0; i < data.num_headers; i++)
     {
-
         int string_len;
         fread(&string_len, sizeof(int), 1, fp);
         array[i].file_name = malloc(string_len * sizeof(char));
@@ -53,6 +57,7 @@ struct header *get_header(char *filename)
     return array;
 }
 
+// storing the metadata of a given file file_name to the given array of structs **array
 void add_metadata(struct header **array, int *size, char *file_name, struct footer *data, bool flag)
 {
     // Allocate memory for a new struct
@@ -84,6 +89,8 @@ void add_metadata(struct header **array, int *size, char *file_name, struct foot
 
     // modify the footer contents
     data->num_headers += 1;
+
+    // file or folder?
     if (flag == true)
     {
         data->total_file_size += file_stat.st_size;
@@ -95,17 +102,18 @@ void add_metadata(struct header **array, int *size, char *file_name, struct foot
     }
 }
 
+// adding the contents of the given file filename to the given zip file
 void add_files(char *filename, char *zip, struct header **head, int *size, struct footer *data)
 {
+    // check if the file exists
     FILE *file = fopen(filename, "r");
-
     if (file == NULL)
     {
         fprintf(stderr, "Error: could not open file %s\n", filename);
         return;
     }
 
-    // append the file metadata (name, size, permissions, etc.) to the archive
+    // store the file metadata (name, size, permissions, etc.) in head
     add_metadata(head, size, filename, data, true);
 
     // open the zip file and add file content to the end of the file
@@ -123,8 +131,10 @@ void add_files(char *filename, char *zip, struct header **head, int *size, struc
     fclose(zip_file);
 }
 
+// writing all the metadata stored in array and data to the given zip file
 void write_metadata(struct header *array, int size, char *filename, struct footer *data)
 {
+    // validate the file
     FILE *fp;
     fp = fopen(filename, "rb+");
     if (fp == NULL)
@@ -133,6 +143,7 @@ void write_metadata(struct header *array, int size, char *filename, struct foote
         return;
     }
     // fwrite(&size, sizeof(int), 1, fp);
+    // fo to the end of the file because that is where we are writing the metadata
     fseek(fp, 0, SEEK_END);
     for (int i = 0; i < size; i++)
     {
@@ -152,22 +163,24 @@ void write_metadata(struct header *array, int size, char *filename, struct foote
     fclose(fp);
 }
 
+// appending the contents of the given file to the given zip file
 void append_files(char *filename, char *zipfile, struct header **head, int *size, struct footer *data)
 {
+    // check if the file exists
     FILE *file = fopen(filename, "r");
     if (file == NULL)
     {
         fprintf(stderr, "Error: could not open file %s\n", filename);
         return;
     }
-
+    // check if the zip file exists
     FILE *zip_file = fopen(zipfile, "r+");
     if (zip_file == NULL)
     {
         fprintf(stderr, "Error: could not open file %s\n", filename);
         return;
     }
-    // append the file contents to the archive
+    // append the file contents to the end of the archive
     fseek(zip_file, data->total_file_size, SEEK_SET);
 
     char buffer[1024];
@@ -178,13 +191,16 @@ void append_files(char *filename, char *zipfile, struct header **head, int *size
         fwrite(buffer, 1, nread, zip_file);
     }
 
+    // store the metadata in the array head
     add_metadata(head, size, filename, data, true);
     fclose(file);
     fclose(zip_file);
 }
 
+// function to recursively traverse the given directory and append / add directory contents t the given zip file
 void traverseDirectory(const char *directoryPath, char *zip, struct header **head, int *size, struct footer *data, bool flag)
 {
+    // check if the directory exists
     DIR *directory = opendir(directoryPath);
     if (directory == NULL)
     {
@@ -195,6 +211,7 @@ void traverseDirectory(const char *directoryPath, char *zip, struct header **hea
     struct dirent *entry;
     while ((entry = readdir(directory)) != NULL)
     {
+        // if entry = link to parent directory or current directory, skip
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
         {
             continue;
@@ -204,21 +221,23 @@ void traverseDirectory(const char *directoryPath, char *zip, struct header **hea
         sprintf(entryPath, "%s/%s", directoryPath, entry->d_name);
 
         struct stat fileStat;
+        // get the current entry;s info
         if (stat(entryPath, &fileStat) < 0)
         {
             printf("Failed to retrieve file information: %s\n", entryPath);
             continue;
         }
 
+        // if current entry is a directory
         if (S_ISDIR(fileStat.st_mode))
         {
-            // It's a directory, recursively traverse
+            // It's a directory, store its metadata and recursively traverse
             add_metadata(head, size, entryPath, data, false);
             traverseDirectory(entryPath, zip, head, size, data, flag);
         }
         else
         {
-            // It's a file, do something
+            // It's a file, either add or append
             if (flag == true)
             {
                 add_files(entryPath, zip, head, size, data);
@@ -229,10 +248,11 @@ void traverseDirectory(const char *directoryPath, char *zip, struct header **hea
             }
         }
     }
-
+    // close the directory
     closedir(directory);
 }
 
+// convert the filemode from binary to the format that appears on linux
 void printFileMode(mode_t fileMode)
 {
     // File Type
@@ -269,6 +289,7 @@ void printFileMode(mode_t fileMode)
     printf("File Mode: %s\n", filePermissions);
 }
 
+// function to print the time as it appears on linux
 void printTime(time_t timestamp)
 {
     struct tm *timeinfo;
@@ -305,6 +326,7 @@ int cmpfunc(const void *a, const void *b)
     return count1 - count2;
 }
 
+// function to print the heirachy of the given folder
 void heirarchy_info_2(char *filename)
 {
     struct header *head = get_header(filename);
@@ -346,6 +368,7 @@ void heirarchy_info_2(char *filename)
 //     }
 // }
 
+// function to remove the unzip folder extract if it already exists
 int removeFile(const char *path, const struct stat *statBuf, int type, struct FTW *ftwBuf)
 {
     if (remove(path) == -1)
@@ -355,6 +378,7 @@ int removeFile(const char *path, const struct stat *statBuf, int type, struct FT
     return 0;
 }
 
+// function to unzip the given zip file
 void unzip(char *filename)
 {
     struct header *head2 = get_header(filename);
@@ -374,12 +398,16 @@ void unzip(char *filename)
             return;
         }
     }
+
+    // create a new diretory with the name extract
     mkdir("extract", 0700);
 
+    // get the metadata from the given zip file
     struct footer data = get_footer_data(filename);
     int size = data.num_headers;
     int start_postion_file = 0;
 
+    // traverse the array of metadata
     for (int i = 0; i < size; i++)
     {
         int dir_back = 0;
@@ -397,10 +425,11 @@ void unzip(char *filename)
             token = strtok_r(path, s, &saveptr);
         }
 
+        // change current working directory to extract
         chdir("extract");
         while (token != NULL)
         {
-
+            // if current token is a file
             if (strchr(token, '.') != NULL)
             {
 
@@ -415,14 +444,15 @@ void unzip(char *filename)
                     perror("Failed to open input file");
                 }
                 fseek(fptr_read, start_postion_file, SEEK_SET);
-                size_t bytes_read = fread(buffer, 1, head2[i].file_size, fptr_read); // read 10 bytes from input file
+                size_t bytes_read = fread(buffer, 1, head2[i].file_size, fptr_read); // read current file size bytes from input file
                 start_postion_file += head2[i].file_size;
                 fwrite(buffer, 1, bytes_read, fptr); // write to the file
                 fclose(fptr);
                 fclose(fptr_read);
             }
-            else
+            else // current token is a foler
             {
+                // if the foler exists, change directory. Otherwise, create the folder and change directory
                 if (chdir(token) != 0)
                 {
                     mkdir(token, head2[i].file_mode);
@@ -434,6 +464,7 @@ void unzip(char *filename)
             dir_back++;
         }
 
+        // move back to the root directory which is extract in our case
         for (int j = 0; j < dir_back; j++)
         {
             chdir("..");
@@ -441,6 +472,7 @@ void unzip(char *filename)
     }
 }
 
+// getting the metadata (struct header + footer) that is stored at the end of given archive file
 struct AppendResult append(char *filename)
 {
     struct AppendResult result;
