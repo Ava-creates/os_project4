@@ -33,7 +33,7 @@ struct header *get_header(char *filename)
     struct footer data = get_footer_data(filename);
     int size = data.num_headers; // total number of headers in the file
 
-    FILE *fp = fopen(filename, "rb");
+    fp = fopen(filename, "rb");
     // seek to the position where the file content ends at the meta data beginds
     fseek(fp, data.total_file_size, SEEK_SET);
 

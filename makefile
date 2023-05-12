@@ -1,7 +1,7 @@
 CC=gcc
-SRCS=final.c functions.c
+SRCS=adzip.c functions.c
 OBJS=$(SRCS:.c=.o)
-EXEC=final
+EXEC=adzip
 
 all: $(EXEC)
 

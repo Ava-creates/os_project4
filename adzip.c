@@ -235,6 +235,6 @@ int main(int argc, char *argv[])
         fclose(file);
         // call the unzip function
         unzip(archiveFile);
-        printf("Extracted %s to folder named extracted\n", archiveFile);
+        printf("Extracted %s to folder named extract\n", archiveFile);
     }
 }
