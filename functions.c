@@ -1,7 +1,6 @@
-#define _XOPEN_SOURCE 1			/* Required under GLIBC for nftw() */
+#define _XOPEN_SOURCE 1 /* Required under GLIBC for nftw() */
 #define _XOPEN_SOURCE_EXTENDED 1
 #include "functions.h"
-
 
 struct footer get_footer_data(char *zip_file)
 {
@@ -152,7 +151,6 @@ void write_metadata(struct header *array, int size, char *filename, struct foote
     fwrite(&data->total_file_size, sizeof(int), 1, fp);
     fclose(fp);
 }
-
 
 void append_files(char *filename, char *zipfile, struct header **head, int *size, struct footer *data)
 {
@@ -370,7 +368,7 @@ void unzip(char *filename)
     if (access("extract", F_OK) == 0)
     {
         // Recursively remove the contents of the directory
-        if (nftw("extract", removeFile, 64, FTW_DEPTH| FTW_PHYS) == -1)
+        if (nftw("extract", removeFile, 64, FTW_DEPTH | FTW_PHYS) == -1)
         {
             perror("Error removing directory contents");
             return;
@@ -389,13 +387,14 @@ void unzip(char *filename)
 
         char s[2] = "/";
         char *token;
+        char *saveptr;
         if (strchr(path, '/') == NULL)
         {
             token = path;
         }
         else
         {
-            token = strtok(path, s);
+            token = strtok_r(path, s, &saveptr);
         }
 
         chdir("extract");
@@ -431,7 +430,7 @@ void unzip(char *filename)
                 }
             }
 
-            token = strtok(NULL, s);
+            token = strtok_r(NULL, s, &saveptr);
             dir_back++;
         }
 
@@ -441,7 +440,6 @@ void unzip(char *filename)
         }
     }
 }
-
 
 struct AppendResult append(char *filename)
 {

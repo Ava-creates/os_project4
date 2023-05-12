@@ -73,9 +73,10 @@ int main(int argc, char *argv[])
 
     char *tokens[MAX_TOKENS];
     int numTokens = 0;
+    char *saveptr;
     char *token;
     char *delimiter = ",";
-    token = strtok(fileList, delimiter);
+    token = strtok_r(fileList, delimiter, &saveptr);
     while (token != NULL)
     {
         // Store the token in the array
@@ -83,7 +84,7 @@ int main(int argc, char *argv[])
         numTokens++;
 
         // Move to the next token
-        token = strtok(NULL, delimiter);
+        token = strtok_r(NULL, delimiter, &saveptr);
     }
 
     if (strcmp(option, "-c") == 0)
